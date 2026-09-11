@@ -1,0 +1,709 @@
+{
+  "info": {
+    "name": "Northwind Orders API - Tecnologias Web II (UCB)",
+    "description": "Coleccion de pruebas manuales de la API de generacion de ordenes.\n\nVariables:\n- base_url: URL base de la API (por defecto http://localhost:3000)\n- customer_id / employee_id / ship_via: identificadores usados al crear la orden\n- product_id_1 / product_id_2: productos a vender\n- order_id: se guarda AUTOMATICAMENTE al crear la orden (POST /orders)\n\nOrden sugerido: ejecutar la carpeta \"1. Consultas base\", luego \"2. Crear y consultar orden\" y finalmente \"3. Errores\".",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000", "type": "string" },
+    { "key": "customer_id", "value": "ALFKI", "type": "string" },
+    { "key": "employee_id", "value": "5", "type": "string" },
+    { "key": "ship_via", "value": "2", "type": "string" },
+    { "key": "product_id_1", "value": "1", "type": "string" },
+    { "key": "product_id_2", "value": "3", "type": "string" },
+    { "key": "order_id", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "0. Salud",
+      "item": [
+        {
+          "name": "GET /health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/health", "host": ["{{base_url}}"], "path": ["health"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('base de datos accesible', () => pm.expect(pm.response.json().data.database).to.eql('ok'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "1. Consultas base",
+      "item": [
+        {
+          "name": "GET /customers",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/customers?limit=10&offset=0",
+              "host": ["{{base_url}}"],
+              "path": ["customers"],
+              "query": [
+                { "key": "limit", "value": "10" },
+                { "key": "offset", "value": "0" },
+                { "key": "q", "value": "ALFKI", "disabled": true }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('devuelve arreglo de clientes', () => pm.expect(body.data).to.be.an('array'));",
+                  "pm.test('incluye id, empresa y contacto', () => {",
+                  "  pm.expect(body.data[0]).to.have.property('customer_id');",
+                  "  pm.expect(body.data[0]).to.have.property('company_name');",
+                  "  pm.expect(body.data[0]).to.have.property('contact_name');",
+                  "});",
+                  "pm.test('incluye metadatos de paginacion', () => pm.expect(body.meta).to.have.property('total'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /customers?q=busqueda",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/customers?q={{customer_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["customers"],
+              "query": [{ "key": "q", "value": "{{customer_id}}" }]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('encuentra el cliente buscado', () => pm.expect(pm.response.json().data.length).to.be.above(0));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /employees",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/employees?limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["employees"],
+              "query": [{ "key": "limit", "value": "20" }]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const emp = pm.response.json().data[0];",
+                  "pm.test('solo id, nombre y apellido', () => pm.expect(Object.keys(emp).sort()).to.eql(['employee_id','first_name','last_name']));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /products (solo disponibles)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/products?limit=50",
+              "host": ["{{base_url}}"],
+              "path": ["products"],
+              "query": [
+                { "key": "limit", "value": "50" },
+                { "key": "q", "value": "cha", "disabled": true }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const productos = pm.response.json().data;",
+                  "pm.test('todos aptos para vender', () => productos.forEach(p => {",
+                  "  pm.expect(p.discontinued).to.eql(false);",
+                  "  pm.expect(p.units_in_stock).to.be.above(0);",
+                  "  pm.expect(p.unit_price).to.be.at.least(0);",
+                  "}));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /products?include_unavailable=true",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/products?include_unavailable=true&limit=50",
+              "host": ["{{base_url}}"],
+              "path": ["products"],
+              "query": [
+                { "key": "include_unavailable", "value": "true" },
+                { "key": "limit", "value": "50" }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('filtro documentado', () => pm.expect(pm.response.json().meta.filter).to.eql('todos los productos'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /shippers",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/shippers", "host": ["{{base_url}}"], "path": ["shippers"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('200 OK', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2. Crear y consultar orden",
+      "item": [
+        {
+          "name": "POST /orders (varios productos)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_id\": \"{{customer_id}}\",\n  \"employee_id\": {{employee_id}},\n  \"order_date\": \"2026-09-09\",\n  \"required_date\": \"2026-09-16\",\n  \"ship_via\": {{ship_via}},\n  \"freight\": 12.5,\n  \"ship_name\": \"Alfreds Futterkiste\",\n  \"ship_address\": \"Obere Str. 57\",\n  \"ship_city\": \"Berlin\",\n  \"ship_postal_code\": \"12209\",\n  \"ship_country\": \"Germany\",\n  \"items\": [\n    { \"product_id\": {{product_id_1}}, \"quantity\": 2, \"discount\": 0 },\n    { \"product_id\": {{product_id_2}}, \"quantity\": 1, \"discount\": 0.1 }\n  ]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/orders", "host": ["{{base_url}}"], "path": ["orders"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('respuesta exitosa uniforme', () => {",
+                  "  pm.expect(body.success).to.eql(true);",
+                  "  pm.expect(body.data).to.have.property('order_id');",
+                  "});",
+                  "pm.test('incluye cabecera Location', () => pm.expect(pm.response.headers.get('Location')).to.eql('/orders/' + body.data.order_id));",
+                  "pm.test('shipped_date queda NULL', () => pm.expect(body.data.shipped_date).to.eql(null));",
+                  "pm.test('calcula importes', () => {",
+                  "  pm.expect(body.data.amounts).to.have.property('subtotal');",
+                  "  pm.expect(body.data.amounts).to.have.property('discount_total');",
+                  "  pm.expect(body.data.amounts).to.have.property('total');",
+                  "});",
+                  "// Guarda automaticamente el identificador devuelto",
+                  "pm.collectionVariables.set('order_id', body.data.order_id);",
+                  "console.log('order_id guardado: ' + body.data.order_id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /orders/{{order_id}}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/orders/{{order_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["orders", "{{order_id}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const data = pm.response.json().data;",
+                  "pm.test('coincide el order_id creado', () => pm.expect(String(data.order_id)).to.eql(String(pm.collectionVariables.get('order_id'))));",
+                  "pm.test('trae cliente, empleado y detalles', () => {",
+                  "  pm.expect(data.customer).to.have.property('company_name');",
+                  "  pm.expect(data.employee).to.have.property('last_name');",
+                  "  pm.expect(data.items.length).to.be.above(1);",
+                  "});",
+                  "pm.test('el total es coherente con las lineas', () => {",
+                  "  const productos = data.items.reduce((acc, i) => acc + i.line_total, 0);",
+                  "  pm.expect(Math.abs(data.amounts.products_total - productos)).to.be.below(0.011);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /products (verificar descuento de stock)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/products?limit=5",
+              "host": ["{{base_url}}"],
+              "path": ["products"],
+              "query": [{ "key": "limit", "value": "5" }]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "console.log('Compare units_in_stock con el valor previo al POST: debe haber bajado exactamente la cantidad vendida (trigger trg_descontar_stock).');"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3. Errores",
+      "item": [
+        {
+          "name": "400 items vacio",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_id\": \"{{customer_id}}\",\n  \"employee_id\": {{employee_id}},\n  \"order_date\": \"2026-09-09\",\n  \"items\": []\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/orders", "host": ["{{base_url}}"], "path": ["orders"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400', () => pm.response.to.have.status(400));",
+                  "pm.test('VALIDATION_ERROR', () => pm.expect(pm.response.json().error.code).to.eql('VALIDATION_ERROR'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "400 cantidad decimal",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_id\": \"{{customer_id}}\",\n  \"employee_id\": {{employee_id}},\n  \"order_date\": \"2026-09-09\",\n  \"items\": [ { \"product_id\": {{product_id_1}}, \"quantity\": 1.5 } ]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/orders", "host": ["{{base_url}}"], "path": ["orders"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400', () => pm.response.to.have.status(400));",
+                  "pm.test('VALIDATION_ERROR', () => pm.expect(pm.response.json().error.code).to.eql('VALIDATION_ERROR'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "400 descuento fuera de rango",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_id\": \"{{customer_id}}\",\n  \"employee_id\": {{employee_id}},\n  \"order_date\": \"2026-09-09\",\n  \"items\": [ { \"product_id\": {{product_id_1}}, \"quantity\": 1, \"discount\": 1.5 } ]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/orders", "host": ["{{base_url}}"], "path": ["orders"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('400', () => pm.response.to.have.status(400));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "400 producto repetido",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_id\": \"{{customer_id}}\",\n  \"employee_id\": {{employee_id}},\n  \"order_date\": \"2026-09-09\",\n  \"items\": [\n    { \"product_id\": {{product_id_1}}, \"quantity\": 1 },\n    { \"product_id\": {{product_id_1}}, \"quantity\": 2 }\n  ]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/orders", "host": ["{{base_url}}"], "path": ["orders"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400', () => pm.response.to.have.status(400));",
+                  "pm.test('DUPLICATE_PRODUCT', () => pm.expect(pm.response.json().error.code).to.eql('DUPLICATE_PRODUCT'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "400 fecha invalida",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_id\": \"{{customer_id}}\",\n  \"employee_id\": {{employee_id}},\n  \"order_date\": \"2026-02-30\",\n  \"items\": [ { \"product_id\": {{product_id_1}}, \"quantity\": 1 } ]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/orders", "host": ["{{base_url}}"], "path": ["orders"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('400', () => pm.response.to.have.status(400));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "400 JSON mal formado",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"customer_id\": \"ALFKI\", ",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/orders", "host": ["{{base_url}}"], "path": ["orders"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400', () => pm.response.to.have.status(400));",
+                  "pm.test('INVALID_JSON', () => pm.expect(pm.response.json().error.code).to.eql('INVALID_JSON'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "400 campos desconocidos",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_id\": \"{{customer_id}}\",\n  \"employee_id\": {{employee_id}},\n  \"order_date\": \"2026-09-09\",\n  \"order_id\": 12345,\n  \"items\": [ { \"product_id\": {{product_id_1}}, \"quantity\": 1 } ]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/orders", "host": ["{{base_url}}"], "path": ["orders"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('400', () => pm.response.to.have.status(400));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "404 cliente inexistente",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_id\": \"ZZZZZ\",\n  \"employee_id\": {{employee_id}},\n  \"order_date\": \"2026-09-09\",\n  \"items\": [ { \"product_id\": {{product_id_1}}, \"quantity\": 1 } ]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/orders", "host": ["{{base_url}}"], "path": ["orders"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404', () => pm.response.to.have.status(404));",
+                  "pm.test('CUSTOMER_NOT_FOUND', () => pm.expect(pm.response.json().error.code).to.eql('CUSTOMER_NOT_FOUND'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "404 empleado inexistente",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_id\": \"{{customer_id}}\",\n  \"employee_id\": 30000,\n  \"order_date\": \"2026-09-09\",\n  \"items\": [ { \"product_id\": {{product_id_1}}, \"quantity\": 1 } ]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/orders", "host": ["{{base_url}}"], "path": ["orders"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404', () => pm.response.to.have.status(404));",
+                  "pm.test('EMPLOYEE_NOT_FOUND', () => pm.expect(pm.response.json().error.code).to.eql('EMPLOYEE_NOT_FOUND'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "404 producto inexistente",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_id\": \"{{customer_id}}\",\n  \"employee_id\": {{employee_id}},\n  \"order_date\": \"2026-09-09\",\n  \"items\": [ { \"product_id\": 30000, \"quantity\": 1 } ]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/orders", "host": ["{{base_url}}"], "path": ["orders"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404', () => pm.response.to.have.status(404));",
+                  "pm.test('PRODUCT_NOT_FOUND', () => pm.expect(pm.response.json().error.code).to.eql('PRODUCT_NOT_FOUND'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "409 stock insuficiente",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_id\": \"{{customer_id}}\",\n  \"employee_id\": {{employee_id}},\n  \"order_date\": \"2026-09-09\",\n  \"items\": [ { \"product_id\": {{product_id_2}}, \"quantity\": 30000 } ]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/orders", "host": ["{{base_url}}"], "path": ["orders"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409', () => pm.response.to.have.status(409));",
+                  "const error = pm.response.json().error;",
+                  "pm.test('INSUFFICIENT_STOCK con detalle', () => {",
+                  "  pm.expect(error.code).to.eql('INSUFFICIENT_STOCK');",
+                  "  pm.expect(error.details[0]).to.have.property('available');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "415 Content-Type no soportado",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "text/plain" }],
+            "body": { "mode": "raw", "raw": "customer_id=ALFKI" },
+            "url": { "raw": "{{base_url}}/orders", "host": ["{{base_url}}"], "path": ["orders"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('415', () => pm.response.to.have.status(415));",
+                  "pm.test('UNSUPPORTED_MEDIA_TYPE', () => pm.expect(pm.response.json().error.code).to.eql('UNSUPPORTED_MEDIA_TYPE'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "404 orden inexistente",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/orders/32000",
+              "host": ["{{base_url}}"],
+              "path": ["orders", "32000"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404', () => pm.response.to.have.status(404));",
+                  "pm.test('ORDER_NOT_FOUND', () => pm.expect(pm.response.json().error.code).to.eql('ORDER_NOT_FOUND'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "400 order_id con formato invalido",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/orders/abc",
+              "host": ["{{base_url}}"],
+              "path": ["orders", "abc"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400', () => pm.response.to.have.status(400));",
+                  "pm.test('VALIDATION_ERROR', () => pm.expect(pm.response.json().error.code).to.eql('VALIDATION_ERROR'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "404 ruta inexistente (JSON, no HTML)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/no-existe",
+              "host": ["{{base_url}}"],
+              "path": ["no-existe"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404', () => pm.response.to.have.status(404));",
+                  "pm.test('responde JSON', () => pm.expect(pm.response.headers.get('Content-Type')).to.include('application/json'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Busqueda con intento de inyeccion SQL",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/customers?q=ALFKI'; DROP TABLE customers; --",
+              "host": ["{{base_url}}"],
+              "path": ["customers"],
+              "query": [{ "key": "q", "value": "ALFKI'; DROP TABLE customers; --" }]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK: se trata como texto', () => pm.response.to.have.status(200));",
+                  "pm.test('sin coincidencias', () => pm.expect(pm.response.json().data.length).to.eql(0));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
