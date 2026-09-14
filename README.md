@@ -115,7 +115,19 @@ Todas las respuestas son JSON con la misma envoltura: éxito
 | `GET /products` | Productos vendibles por defecto; `include_unavailable=true` incluye descontinuados/sin stock/sin precio |
 | `GET /shippers` | Transportistas, para elegir `ship_via` |
 | `POST /orders` | Crea una orden (cabecera + detalles) en una sola transacción |
+| `GET /orders` | Lista órdenes (más recientes primero): `customer_id`, `employee_id`, `from`, `to`, `limit`, `offset` |
 | `GET /orders/:id` | Consulta una orden ya creada, con los mismos cálculos que al crearla |
+
+### Listar órdenes
+
+`GET /orders` devuelve un **resumen** por orden (cabecera, cliente, empleado, `items_count` e importes
+totales), sin las líneas de detalle; para el desglose completo se usa `GET /orders/:id`. Los importes
+se calculan con la misma lógica decimal que en la creación. Si ningún registro coincide con los
+filtros responde `200` con `data: []` (no `404`).
+
+```
+GET /orders?customer_id=ALFKI&from=2026-01-01&to=2026-12-31&limit=10&offset=0
+```
 
 ### Crear una orden
 

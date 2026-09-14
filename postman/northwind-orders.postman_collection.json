@@ -286,6 +286,80 @@
           ]
         },
         {
+          "name": "GET /orders (listado paginado)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/orders?limit=10&offset=0",
+              "host": ["{{base_url}}"],
+              "path": ["orders"],
+              "query": [
+                { "key": "limit", "value": "10" },
+                { "key": "offset", "value": "0" }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('incluye meta de paginacion', () => {",
+                  "  pm.expect(body.meta).to.have.property('total');",
+                  "  pm.expect(body.meta.returned).to.eql(body.data.length);",
+                  "});",
+                  "pm.test('mas recientes primero', () => {",
+                  "  const ids = body.data.map(o => o.order_id);",
+                  "  pm.expect(ids).to.eql(ids.slice().sort((a, b) => b - a));",
+                  "});",
+                  "pm.test('la orden creada aparece en la primera pagina', () => pm.expect(body.data.map(o => String(o.order_id))).to.include(String(pm.collectionVariables.get('order_id'))));",
+                  "pm.test('el resumen no expone las lineas', () => pm.expect(body.data[0]).to.not.have.property('items'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /orders?customer_id (filtrado)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/orders?customer_id={{customer_id}}&limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["orders"],
+              "query": [
+                { "key": "customer_id", "value": "{{customer_id}}" },
+                { "key": "limit", "value": "10" },
+                { "key": "employee_id", "value": "{{employee_id}}", "disabled": true },
+                { "key": "from", "value": "2026-01-01", "disabled": true },
+                { "key": "to", "value": "2026-12-31", "disabled": true }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const data = pm.response.json().data;",
+                  "pm.test('solo ordenes del cliente filtrado', () => data.forEach(o => pm.expect(o.customer.customer_id).to.eql(pm.collectionVariables.get('customer_id'))));",
+                  "pm.test('cada resumen trae importes e items_count', () => data.forEach(o => {",
+                  "  pm.expect(o).to.have.property('items_count');",
+                  "  pm.expect(o.amounts).to.have.property('total');",
+                  "}));"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "GET /products (verificar descuento de stock)",
           "request": {
             "method": "GET",
@@ -601,6 +675,64 @@
                 "exec": [
                   "pm.test('415', () => pm.response.to.have.status(415));",
                   "pm.test('UNSUPPORTED_MEDIA_TYPE', () => pm.expect(pm.response.json().error.code).to.eql('UNSUPPORTED_MEDIA_TYPE'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "400 filtros de listado invalidos",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/orders?limit=500&employee_id=abc",
+              "host": ["{{base_url}}"],
+              "path": ["orders"],
+              "query": [
+                { "key": "limit", "value": "500" },
+                { "key": "employee_id", "value": "abc" }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400', () => pm.response.to.have.status(400));",
+                  "pm.test('VALIDATION_ERROR', () => pm.expect(pm.response.json().error.code).to.eql('VALIDATION_ERROR'));",
+                  "pm.test('detalla los campos invalidos', () => pm.expect(pm.response.json().error.details.length).to.be.above(0));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "200 listado vacio (no 404) si el filtro no coincide",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/orders?customer_id=ZZZZZ",
+              "host": ["{{base_url}}"],
+              "path": ["orders"],
+              "query": [{ "key": "customer_id", "value": "ZZZZZ" }]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('coleccion vacia', () => {",
+                  "  pm.expect(body.data).to.eql([]);",
+                  "  pm.expect(body.meta.total).to.eql(0);",
+                  "});"
                 ]
               }
             }
