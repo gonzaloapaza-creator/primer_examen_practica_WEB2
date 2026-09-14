@@ -61,7 +61,7 @@ async function insertDetails(client, orderId, items) {
   return result.rows;
 }
 
-const HEADER_SELECT = `
+const HEADER_BASE = `
   SELECT o.order_id,
          o.customer_id,
          c.company_name  AS customer_company_name,
@@ -84,7 +84,9 @@ const HEADER_SELECT = `
     FROM public.orders o
     LEFT JOIN public.customers c ON c.customer_id = o.customer_id
     LEFT JOIN public.employees e ON e.employee_id = o.employee_id
-    LEFT JOIN public.shippers  s ON s.shipper_id  = o.ship_via
+    LEFT JOIN public.shippers  s ON s.shipper_id  = o.ship_via`;
+
+const HEADER_SELECT = `${HEADER_BASE}
    WHERE o.order_id = $1`;
 
 const DETAILS_SELECT = `
@@ -98,6 +100,18 @@ const DETAILS_SELECT = `
    WHERE d.order_id = $1
    ORDER BY d.product_id ASC`;
 
+const DETAILS_BY_ORDERS_SELECT = `
+  SELECT d.order_id,
+         d.product_id,
+         p.product_name,
+         d.unit_price,
+         d.quantity,
+         d.discount
+    FROM public.order_details d
+    LEFT JOIN public.products p ON p.product_id = d.product_id
+   WHERE d.order_id = ANY($1::smallint[])
+   ORDER BY d.order_id ASC, d.product_id ASC`;
+
 /** Lee cabecera y detalles. Acepta un client de transaccion opcional. */
 async function findFullById(orderId, client = null) {
   const runner = client || { query };
@@ -107,4 +121,59 @@ async function findFullById(orderId, client = null) {
   return { header: headerResult.rows[0], details: detailsResult.rows };
 }
 
-module.exports = { insertHeader, insertDetails, findFullById };
+/**
+ * Lista cabeceras de ordenes con filtros opcionales y paginacion.
+ * Los filtros viajan siempre como parametros ($n): nunca se interpola valor alguno.
+ */
+async function list({ customerId, employeeId, from, to, limit, offset }) {
+  const filters = [];
+  const params = [];
+
+  if (customerId) {
+    params.push(customerId);
+    filters.push(`o.customer_id = $${params.length}`);
+  }
+  if (employeeId !== null && employeeId !== undefined) {
+    params.push(employeeId);
+    filters.push(`o.employee_id = $${params.length}`);
+  }
+  if (from) {
+    params.push(from);
+    filters.push(`o.order_date >= $${params.length}::date`);
+  }
+  if (to) {
+    params.push(to);
+    filters.push(`o.order_date <= $${params.length}::date`);
+  }
+
+  const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
+
+  const countResult = await query(
+    `SELECT COUNT(*)::int AS total FROM public.orders o ${where}`,
+    params
+  );
+
+  params.push(limit, offset);
+  const rowsResult = await query(
+    `${HEADER_BASE}
+     ${where}
+      ORDER BY o.order_id DESC
+      LIMIT $${params.length - 1} OFFSET $${params.length}`,
+    params
+  );
+
+  return { rows: rowsResult.rows, total: countResult.rows[0].total };
+}
+
+/** Detalles de varias ordenes en una sola consulta, agrupados por order_id. */
+async function findDetailsByOrderIds(orderIds) {
+  if (orderIds.length === 0) return new Map();
+  const { rows } = await query(DETAILS_BY_ORDERS_SELECT, [orderIds]);
+  const grouped = new Map(orderIds.map((id) => [id, []]));
+  for (const row of rows) {
+    grouped.get(row.order_id).push(row);
+  }
+  return grouped;
+}
+
+module.exports = { insertHeader, insertDetails, findFullById, list, findDetailsByOrderIds };

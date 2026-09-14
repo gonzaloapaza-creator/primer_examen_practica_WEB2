@@ -3,8 +3,8 @@
 const express = require('express');
 const controller = require('../controllers/orders.controller');
 const requireJsonContentType = require('../middlewares/requireJsonContentType');
-const { validateBody, validateParams } = require('../validation/validate');
-const { createOrderSchema, orderIdParamSchema } = require('../validation/schemas');
+const { validateBody, validateParams, validateQuery } = require('../validation/validate');
+const { createOrderSchema, orderIdParamSchema, ordersQuerySchema } = require('../validation/schemas');
 const { asyncHandler } = require('../utils/respond');
 
 const router = express.Router();
@@ -16,6 +16,9 @@ router.post(
   validateBody(createOrderSchema),
   asyncHandler(controller.createOrder)
 );
+
+// GET /orders?customer_id=&employee_id=&from=&to=&limit=&offset=
+router.get('/', validateQuery(ordersQuerySchema), asyncHandler(controller.getOrders));
 
 // GET /orders/:id
 router.get('/:id', validateParams(orderIdParamSchema), asyncHandler(controller.getOrderById));

@@ -29,6 +29,7 @@ router.get('/', (req, res) =>
       'GET /products',
       'GET /shippers',
       'POST /orders',
+      'GET /orders',
       'GET /orders/:id'
     ]
   })

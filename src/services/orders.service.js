@@ -68,6 +68,28 @@ function presentOrder(header, details) {
   };
 }
 
+/** Version resumida para listados: sin lineas, con importes ya calculados. */
+function presentOrderSummary(header, details) {
+  const lines = details.map((detail) => computeLineAmounts(detail));
+  return {
+    order_id: header.order_id,
+    order_date: header.order_date,
+    required_date: header.required_date,
+    shipped_date: header.shipped_date,
+    customer: {
+      customer_id: header.customer_id,
+      company_name: header.customer_company_name ?? null
+    },
+    employee: {
+      employee_id: header.employee_id,
+      first_name: header.employee_first_name ?? null,
+      last_name: header.employee_last_name ?? null
+    },
+    items_count: details.length,
+    amounts: computeOrderTotals(lines, header.freight)
+  };
+}
+
 /** Detecta identificadores de producto repetidos dentro de la misma solicitud. */
 function assertNoDuplicateProducts(items) {
   const seen = new Set();
@@ -286,4 +308,29 @@ async function getOrderById(orderId) {
   return presentOrder(stored.header, stored.details);
 }
 
-module.exports = { createOrder, getOrderById, presentOrder };
+/**
+ * Lista ordenes ya registradas (mas recientes primero) con filtros opcionales.
+ * Los detalles de la pagina se leen en una sola consulta para evitar N+1.
+ */
+async function listOrders({ customerId, employeeId, from, to, limit, offset }) {
+  const { rows, total } = await ordersRepository.list({
+    customerId,
+    employeeId,
+    from,
+    to,
+    limit,
+    offset
+  });
+
+  const detailsByOrder = await ordersRepository.findDetailsByOrderIds(
+    rows.map((row) => row.order_id)
+  );
+
+  const data = rows.map((header) =>
+    presentOrderSummary(header, detailsByOrder.get(header.order_id) || [])
+  );
+
+  return { data, meta: { total, limit, offset, returned: data.length } };
+}
+
+module.exports = { createOrder, getOrderById, listOrders, presentOrder, presentOrderSummary };

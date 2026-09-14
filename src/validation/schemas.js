@@ -120,6 +120,35 @@ const productsQuerySchema = listQuerySchema.extend({
     .transform((v) => v === 'true')
 });
 
+const ordersQuerySchema = listQuerySchema
+  .omit({ q: true })
+  .extend({
+    customer_id: z
+      .string({ invalid_type_error: 'customer_id debe ser una cadena' })
+      .trim()
+      .min(1, 'customer_id no puede estar vacio')
+      .max(5, 'customer_id admite como maximo 5 caracteres')
+      .optional(),
+    employee_id: z.coerce
+      .number({ invalid_type_error: 'employee_id debe ser numerico' })
+      .int('employee_id debe ser entero')
+      .min(1, 'employee_id debe ser mayor o igual a 1')
+      .max(SMALLINT_MAX, `employee_id excede el maximo del esquema (${SMALLINT_MAX})`)
+      .optional(),
+    from: isoDate.optional(),
+    to: isoDate.optional()
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    if (value.from && value.to && value.to < value.from) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['to'],
+        message: 'to debe ser igual o posterior a from'
+      });
+    }
+  });
+
 const orderIdParamSchema = z.object({
   id: z
     .string()
@@ -135,5 +164,6 @@ module.exports = {
   orderItemSchema,
   listQuerySchema,
   productsQuerySchema,
+  ordersQuerySchema,
   orderIdParamSchema
 };
